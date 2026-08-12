@@ -2,6 +2,15 @@
 
 All notable changes use Semantic Versioning.
 
+## [0.2.0] - 2026-08-12
+
+### Added
+
+- Devices page and Remote Control creation wizard.
+- Configurable button count, action names and live RF learning confirmation.
+- Persistent Device and RFCode database models and CRUD API.
+- Known device/action matching in the Live RF monitor.
+
 ## [0.1.2] - 2026-08-12
 
 ### Fixed

@@ -10,10 +10,10 @@ from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 
 from .config import get_settings
-from .db import RFEvent, get_db, init_db
+from .db import Device, RFCode, RFEvent, get_db, init_db
 from .events import EventService
 from .log_buffer import LogEntry, memory_log_handler
-from .models import MQTTConfigUpdate, MQTTConfigView, MQTTStatus, RFFrame
+from .models import DeviceCreate, DeviceView, MQTTConfigUpdate, MQTTConfigView, MQTTStatus, RFCodeView, RFFrame
 from .mqtt_service import MQTTService
 from .settings_store import config_view, effective_settings, save_mqtt_config
 
@@ -107,6 +107,39 @@ def events(limit: int = 100, db: Session = Depends(get_db)) -> list[RFFrame]:
         )
         for row in rows
     ]
+
+
+def device_view(device: Device) -> DeviceView:
+    return DeviceView(
+        id=device.id, name=device.name, device_type=device.device_type, area=device.area,
+        enabled=device.enabled,
+        codes=[RFCodeView(id=code.id, code=code.code, action=code.action, protocol=code.protocol, bits=code.bits, pulse=code.pulse) for code in device.codes],
+    )
+
+
+@app.get("/api/devices", response_model=list[DeviceView])
+def list_devices(db: Session = Depends(get_db)) -> list[DeviceView]:
+    return [device_view(device) for device in db.scalars(select(Device).order_by(Device.name)).unique().all()]
+
+
+@app.post("/api/devices", response_model=DeviceView, status_code=201)
+def create_device(payload: DeviceCreate, db: Session = Depends(get_db)) -> DeviceView:
+    device = Device(name=payload.name.strip(), device_type=payload.device_type, area=(payload.area or "").strip() or None)
+    for item in payload.codes:
+        device.codes.append(RFCode(code=item.code.strip().upper(), action=item.action.strip(), protocol=item.protocol, bits=item.bits, pulse=item.pulse))
+    db.add(device)
+    db.commit()
+    db.refresh(device)
+    logger.info("Device created: id=%s name=%s type=%s codes=%s", device.id, device.name, device.device_type, len(device.codes))
+    return device_view(device)
+
+
+@app.delete("/api/devices/{device_id}", status_code=204)
+def delete_device(device_id: int, db: Session = Depends(get_db)) -> None:
+    device = db.get(Device, device_id)
+    if device:
+        db.delete(device)
+        db.commit()
 
 
 @app.websocket("/api/ws/live")

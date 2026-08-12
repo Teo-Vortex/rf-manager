@@ -1,8 +1,8 @@
 from collections.abc import Generator
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, Integer, String, Text, create_engine
-from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, create_engine
+from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, relationship, sessionmaker
 
 from .config import get_settings
 
@@ -34,6 +34,33 @@ class AppSetting(Base):
 
     key: Mapped[str] = mapped_column(String(128), primary_key=True)
     value: Mapped[str] = mapped_column(Text)
+
+
+class Device(Base):
+    __tablename__ = "devices"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(255), index=True)
+    device_type: Mapped[str] = mapped_column(String(64), default="remote_control")
+    area: Mapped[str | None] = mapped_column(String(255))
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    codes: Mapped[list["RFCode"]] = relationship(back_populates="device", cascade="all, delete-orphan")
+
+
+class RFCode(Base):
+    __tablename__ = "rf_codes"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    device_id: Mapped[int] = mapped_column(ForeignKey("devices.id", ondelete="CASCADE"), index=True)
+    code: Mapped[str] = mapped_column(String(128), index=True)
+    action: Mapped[str] = mapped_column(String(255))
+    protocol: Mapped[int | None]
+    bits: Mapped[int | None]
+    pulse: Mapped[int | None]
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    device: Mapped[Device] = relationship(back_populates="codes")
 
 
 engine = create_engine(get_settings().database_url, connect_args={"check_same_thread": False})

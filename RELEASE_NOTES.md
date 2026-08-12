@@ -1,9 +1,10 @@
-## RF Manager 0.1.2
+## RF Manager 0.2.0
 
-This patch fixes MQTT connection handling with paho-mqtt 2.x.
+Phase 2 introduces the first complete device-learning workflow.
 
-- Correctly handles the MQTT v2 `ReasonCode` callback value.
-- Successful broker connections can now complete normally.
-- Authentication failures are shown with their real broker reason.
+- Create Remote Control devices from the web UI.
+- Choose 1-16 buttons and name every action.
+- Learn the next incoming RF frame with explicit confirmation.
+- Persist device/code mappings and recognize them in Live RF.
 
 The application does not transmit RF or publish Home Assistant Discovery yet.

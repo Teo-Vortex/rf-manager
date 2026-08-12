@@ -3,7 +3,9 @@ from datetime import datetime, timezone
 
 from fastapi import WebSocket
 
-from .db import RFEvent, SessionLocal
+from sqlalchemy import select
+
+from .db import Device, RFCode, RFEvent, SessionLocal
 from .models import RFFrame
 
 
@@ -32,6 +34,19 @@ class EventService:
         now = asyncio.get_running_loop().time()
         key = (frame.source_bridge, frame.code, frame.protocol, frame.bits)
         previous = self._recent.get(key)
+
+        with SessionLocal() as db:
+            match = db.execute(
+                select(RFCode, Device)
+                .join(Device, RFCode.device_id == Device.id)
+                .where(RFCode.code == frame.code, RFCode.enabled.is_(True), Device.enabled.is_(True))
+                .limit(1)
+            ).first()
+            if match:
+                rf_code, device = match
+                frame.device_id = device.id
+                frame.device_name = device.name
+                frame.action = rf_code.action
 
         if previous and now - previous[0] <= self._window_seconds:
             event_id = previous[1]
