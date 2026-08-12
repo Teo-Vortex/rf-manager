@@ -38,3 +38,14 @@ def test_rejects_invalid_json() -> None:
 def test_rejects_rf_frame_without_data() -> None:
     with pytest.raises(TasmotaParseError):
         parse_tasmota_message("tele/rfbridge/RESULT", '{"RfReceived":{"Bits":24}}')
+
+
+def test_parses_real_tasmota_sensors_payload() -> None:
+    frame = parse_tasmota_message(
+        "tele/tasmota_A3F90F/RESULT",
+        b'{"Time":"2026-08-12T18:29:08","RfReceived":{"Sync":12324,"Low":440,"High":1212,"Data":"F6A948","RfKey":"None"}}',
+    )
+    assert frame is not None
+    assert frame.code == "F6A948"
+    assert frame.source_bridge == "tasmota_A3F90F"
+    assert frame.sync == 12324

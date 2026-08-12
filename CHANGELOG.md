@@ -2,6 +2,13 @@
 
 All notable changes use Semantic Versioning.
 
+## [0.4.4] - 2026-08-12
+
+### Fixed
+
+- Persist received RF frames without passing transient device enrichment fields to the RF event table.
+- Restore Live RF updates for Tasmota `RfReceived` messages after device matching was introduced.
+
 ## [0.4.3] - 2026-08-12
 
 ### Fixed

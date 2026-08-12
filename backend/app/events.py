@@ -68,7 +68,10 @@ class EventService:
             self._recent[key] = (now, event_id)
         else:
             with SessionLocal() as db:
-                event = RFEvent(**frame.model_dump(exclude={"count"}), count=1)
+                event = RFEvent(
+                    **frame.model_dump(exclude={"count", "device_id", "device_name", "action"}),
+                    count=1,
+                )
                 db.add(event)
                 db.commit()
                 db.refresh(event)
