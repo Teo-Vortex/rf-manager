@@ -1,0 +1,25 @@
+services:
+  rf-manager:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: rf-manager:local
+    container_name: rf-manager
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_URL: sqlite:////data/rfmanager.db
+    ports:
+      - "${APP_PORT:-8765}:8765"
+    volumes:
+      - ./data:/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8765/api/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s

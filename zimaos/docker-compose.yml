@@ -1,0 +1,47 @@
+name: rf-manager
+
+services:
+  rf-manager:
+    image: ghcr.io/teo-vortex/rf-manager:latest
+    container_name: rf-manager
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: sqlite:////data/rfmanager.db
+      MQTT_HOST: host.docker.internal
+      MQTT_PORT: 1883
+      TASMOTA_RECEIVE_TOPIC: tele/+/RESULT
+    ports:
+      - target: 8765
+        published: "8765"
+        protocol: tcp
+    volumes:
+      - type: bind
+        source: /DATA/AppData/rf-manager/data
+        target: /data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8765/api/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+x-casaos:
+  architectures:
+    - amd64
+    - arm64
+  main: rf-manager
+  author: RF Manager contributors
+  category: Home Automation
+  description:
+    en_us: Manage 433 MHz RF devices through Sonoff RF Bridge, Tasmota and MQTT.
+  developer: RF Manager contributors
+  icon: https://raw.githubusercontent.com/Teo-Vortex/rf-manager/main/zimaos/icon.svg
+  tagline:
+    en_us: A Zigbee2MQTT-style manager for 433 MHz RF devices.
+  title:
+    en_us: RF Manager
+  index: /
+  port_map: "8765"
+  scheme: http

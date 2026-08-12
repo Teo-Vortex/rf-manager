@@ -1,0 +1,9 @@
+.git
+.github
+.env
+data
+**/__pycache__
+**/.pytest_cache
+frontend/node_modules
+frontend/dist
+RF_Manager_Codex_Instructions.txt
