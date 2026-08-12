@@ -12,12 +12,15 @@ from sqlalchemy.orm import Session
 from .config import get_settings
 from .db import RFEvent, get_db, init_db
 from .events import EventService
+from .log_buffer import LogEntry, memory_log_handler
 from .models import MQTTConfigUpdate, MQTTConfigView, MQTTStatus, RFFrame
 from .mqtt_service import MQTTService
 from .settings_store import config_view, effective_settings, save_mqtt_config
 
 settings = get_settings()
 logging.basicConfig(level=settings.log_level, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+logging.getLogger().addHandler(memory_log_handler)
+logger = logging.getLogger(__name__)
 event_service = EventService(settings.rf_duplicate_window_ms)
 mqtt_service = MQTTService(settings, event_service)
 
@@ -68,6 +71,16 @@ def get_mqtt_config() -> MQTTConfigView:
 @app.put("/api/settings/mqtt", response_model=MQTTStatus)
 def update_mqtt_config(payload: MQTTConfigUpdate) -> MQTTStatus:
     active = save_mqtt_config(payload, settings)
+    logger.info(
+        "MQTT configuration updated from UI: host=%s port=%s TLS=%s client_id=%s topic=%s username_configured=%s password_configured=%s",
+        active.mqtt_host,
+        active.mqtt_port,
+        active.mqtt_tls,
+        active.mqtt_client_id,
+        active.tasmota_receive_topic,
+        bool(active.mqtt_username),
+        bool(active.mqtt_password),
+    )
     mqtt_service.reconfigure(active)
     return MQTTStatus(
         connected=False,
@@ -76,6 +89,11 @@ def update_mqtt_config(payload: MQTTConfigUpdate) -> MQTTStatus:
         topic=active.tasmota_receive_topic,
         last_error=None,
     )
+
+
+@app.get("/api/diagnostics/logs", response_model=list[LogEntry])
+def diagnostic_logs(limit: int = 300) -> list[LogEntry]:
+    return memory_log_handler.recent(min(max(limit, 1), 1000))
 
 
 @app.get("/api/events", response_model=list[RFFrame])

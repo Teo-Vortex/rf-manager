@@ -9,6 +9,7 @@ type Config = {
   host: string; port: number; username: string | null; password_configured: boolean;
   tls: boolean; client_id: string; receive_topic: string;
 };
+type LogEntry = { timestamp: string; level: string; logger: string; message: string };
 
 const blankConfig: Config = {
   host: "host.docker.internal", port: 1883, username: "", password_configured: false,
@@ -25,6 +26,10 @@ export function App() {
   const [notice, setNotice] = useState("");
   const [paused, setPaused] = useState(false);
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState<"live" | "diagnostics">("live");
+  const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [logsPaused, setLogsPaused] = useState(false);
+  const [hiddenBefore, setHiddenBefore] = useState(0);
 
   useEffect(() => {
     Promise.all([
@@ -50,10 +55,19 @@ export function App() {
     return () => ws.close();
   }, [paused]);
 
+  useEffect(() => {
+    if (page !== "diagnostics" || logsPaused) return;
+    const load = () => fetch("/api/diagnostics/logs?limit=500").then((r) => r.json()).then(setLogs);
+    load();
+    const timer = window.setInterval(load, 2000);
+    return () => window.clearInterval(timer);
+  }, [page, logsPaused]);
+
   const visible = useMemo(() => {
     const value = search.trim().toLowerCase();
     return value ? events.filter((item) => `${item.code} ${item.source_bridge}`.toLowerCase().includes(value)) : events;
   }, [events, search]);
+  const visibleLogs = logs.filter((entry) => new Date(entry.timestamp).getTime() > hiddenBefore);
 
   async function saveSettings(event: FormEvent) {
     event.preventDefault(); setSaving(true); setNotice("");
@@ -74,13 +88,13 @@ export function App() {
   return <div className="shell">
     <aside>
       <div className="brand"><span className="signal">⌁</span><div><strong>RF Manager</strong><small>433 MHz control</small></div></div>
-      <nav><button className="active">Live RF</button><button disabled>Devices <em>Soon</em></button><button disabled>Events <em>Soon</em></button></nav>
+      <nav><button className={page === "live" ? "active" : ""} onClick={() => setPage("live")}>Live RF</button><button className={page === "diagnostics" ? "active" : ""} onClick={() => setPage("diagnostics")}>Diagnostics</button><button disabled>Devices <em>Soon</em></button></nav>
       <button className="settings-link" onClick={() => setSettingsOpen(!settingsOpen)}>⚙ MQTT settings</button>
       <div className={`broker ${status?.connected ? "online" : "offline"}`}><i />
         <div><strong>{status?.connected ? "MQTT connected" : "MQTT disconnected"}</strong><small>{status ? `${status.host}:${status.port}` : "Loading…"}</small></div>
       </div>
     </aside>
-    <main>
+    <main>{page === "live" ? <>
       <header><div><p className="eyebrow">REAL-TIME MONITOR</p><h1>Live RF activity</h1><p>Signals received from your Tasmota RF Bridge.</p></div><button className="secondary" onClick={() => setSettingsOpen(!settingsOpen)}>Configure MQTT</button></header>
       {settingsOpen && <section className="settings-card">
         <div><p className="eyebrow">CONNECTION</p><h2>MQTT broker</h2><p>For a broker running on this computer, keep <code>host.docker.internal</code>.</p></div>
@@ -102,6 +116,18 @@ export function App() {
         </table>
         {!visible.length && <div className="empty"><span>⌁</span><h3>Waiting for RF signals</h3><p>Press a button on a 433 MHz remote. Incoming Tasmota messages will appear here.</p></div>}
       </section>
-    </main>
+    </> : <>
+      <header><div><p className="eyebrow">SYSTEM DIAGNOSTICS</p><h1>Console & logs</h1><p>Connection details from the RF Manager backend. Passwords are never logged.</p></div><button className="secondary" onClick={() => setPage("live")}>Back to Live RF</button></header>
+      <section className="diagnostic-summary">
+        <div><small>MQTT STATUS</small><strong className={status?.connected ? "good" : "bad"}>{status?.connected ? "Connected" : "Disconnected"}</strong></div>
+        <div><small>BROKER</small><strong>{status ? `${status.host}:${status.port}` : "—"}</strong></div>
+        <div><small>TOPIC</small><strong>{status?.topic || "—"}</strong></div>
+        <div><small>LAST ERROR</small><strong className="bad">{status?.last_error || "None"}</strong></div>
+      </section>
+      <section className="console-card">
+        <div className="console-toolbar"><span>{visibleLogs.length} log entries</span><div><button className="ghost" onClick={() => setLogsPaused(!logsPaused)}>{logsPaused ? "Resume" : "Pause"}</button><button className="ghost" onClick={() => navigator.clipboard.writeText(visibleLogs.map((entry) => `${entry.timestamp} ${entry.level} ${entry.logger}: ${entry.message}`).join("\n"))}>Copy logs</button><button className="ghost" onClick={() => setHiddenBefore(Date.now())}>Clear view</button></div></div>
+        <div className="console">{visibleLogs.length ? visibleLogs.map((entry, index) => <div className={`log-line ${entry.level.toLowerCase()}`} key={`${entry.timestamp}-${index}`}><time>{new Date(entry.timestamp).toLocaleTimeString()}</time><b>{entry.level}</b><span>{entry.logger}</span><code>{entry.message}</code></div>) : <div className="console-empty">No log entries in this view.</div>}</div>
+      </section>
+    </>}</main>
   </div>;
 }

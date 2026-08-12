@@ -1,5 +1,6 @@
 import logging
 import random
+import socket
 import threading
 import time
 
@@ -20,6 +21,7 @@ class MQTTService:
         self.last_error: str | None = None
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
+        self._attempt = 0
         self._client = self._create_client(settings)
 
     def _create_client(self, settings: Settings) -> mqtt.Client:
@@ -58,8 +60,24 @@ class MQTTService:
     def _run(self) -> None:
         delay = 1.0
         while not self._stop.is_set():
+            self._attempt += 1
+            started = time.monotonic()
             try:
-                logger.info("Connecting to MQTT broker %s:%s", self.settings.mqtt_host, self.settings.mqtt_port)
+                addresses = sorted({
+                    item[4][0]
+                    for item in socket.getaddrinfo(
+                        self.settings.mqtt_host, self.settings.mqtt_port, type=socket.SOCK_STREAM
+                    )
+                })
+                logger.info(
+                    "MQTT attempt %s: %s:%s (resolved: %s, TLS: %s, client ID: %s)",
+                    self._attempt,
+                    self.settings.mqtt_host,
+                    self.settings.mqtt_port,
+                    ", ".join(addresses),
+                    self.settings.mqtt_tls,
+                    self.settings.mqtt_client_id,
+                )
                 self._client.connect(
                     self.settings.mqtt_host,
                     self.settings.mqtt_port,
@@ -69,26 +87,42 @@ class MQTTService:
                 delay = 1.0
             except Exception as exc:
                 self.connected = False
-                self.last_error = str(exc)
-                logger.warning("MQTT connection failed: %s", exc)
+                elapsed = time.monotonic() - started
+                self.last_error = f"{type(exc).__name__}: {exc}"
+                logger.warning(
+                    "MQTT attempt %s failed after %.2fs: %s: %s",
+                    self._attempt,
+                    elapsed,
+                    type(exc).__name__,
+                    exc,
+                )
             if not self._stop.is_set():
-                time.sleep(delay + random.uniform(0, delay * 0.2))
+                wait = delay + random.uniform(0, delay * 0.2)
+                logger.info("MQTT reconnect scheduled in %.1fs", wait)
+                time.sleep(wait)
                 delay = min(delay * 2, 60)
 
     def _on_connect(self, client: mqtt.Client, userdata: object, flags: object, reason_code: object, properties: object) -> None:
         if int(reason_code) == 0:
             self.connected = True
             self.last_error = None
-            client.subscribe(self.settings.tasmota_receive_topic)
+            result, message_id = client.subscribe(self.settings.tasmota_receive_topic)
             client.publish("rfmanager/status", "online", qos=1, retain=True)
-            logger.info("MQTT connected; subscribed to %s", self.settings.tasmota_receive_topic)
+            logger.info(
+                "MQTT connected successfully; subscribing to %s (result=%s, mid=%s)",
+                self.settings.tasmota_receive_topic,
+                result,
+                message_id,
+            )
         else:
             self.last_error = f"Connection rejected: {reason_code}"
+            logger.error("MQTT broker rejected connection: %s", reason_code)
 
     def _on_disconnect(self, client: mqtt.Client, userdata: object, disconnect_flags: object, reason_code: object, properties: object) -> None:
         self.connected = False
         if not self._stop.is_set():
             self.last_error = f"Disconnected: {reason_code}"
+            logger.warning("MQTT disconnected: %s", reason_code)
 
     def _on_message(self, client: mqtt.Client, userdata: object, message: mqtt.MQTTMessage) -> None:
         try:
@@ -96,4 +130,4 @@ class MQTTService:
             if frame:
                 self.event_service.submit_from_mqtt_thread(frame)
         except TasmotaParseError as exc:
-            logger.debug("Ignored malformed Tasmota message on %s: %s", message.topic, exc)
+            logger.warning("Ignored malformed Tasmota message on %s: %s", message.topic, exc)
