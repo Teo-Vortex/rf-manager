@@ -2,6 +2,13 @@
 
 All notable changes use Semantic Versioning.
 
+## [0.4.3] - 2026-08-12
+
+### Fixed
+
+- MQTT save notice now changes to connected or displays the actual connection error.
+- Log broker SUBACK confirmations and expose rejected MQTT subscriptions.
+
 ## [0.4.2] - 2026-08-12
 
 ### Fixed

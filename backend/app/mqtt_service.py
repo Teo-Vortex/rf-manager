@@ -41,6 +41,7 @@ class MQTTService:
         client.on_connect = self._on_connect
         client.on_disconnect = self._on_disconnect
         client.on_message = self._on_message
+        client.on_subscribe = self._on_subscribe
         return client
 
     def start(self) -> None:
@@ -183,6 +184,14 @@ class MQTTService:
         if not self._stop.is_set():
             self.last_error = f"Disconnected: {reason_code}"
             logger.warning("MQTT disconnected: %s", reason_code)
+
+    def _on_subscribe(self, client: mqtt.Client, userdata: object, mid: int, reason_code_list: list[object], properties: object) -> None:
+        failures = [code for code in reason_code_list if bool(getattr(code, "is_failure", False))]
+        if failures:
+            self.last_error = f"MQTT subscription rejected: {', '.join(map(str, failures))}"
+            logger.error("MQTT subscription rejected by broker: mid=%s reasons=%s", mid, reason_code_list)
+        else:
+            logger.info("MQTT subscription confirmed by broker: mid=%s granted=%s", mid, reason_code_list)
 
     def _on_message(self, client: mqtt.Client, userdata: object, message: mqtt.MQTTMessage) -> None:
         try:

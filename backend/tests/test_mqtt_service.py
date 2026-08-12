@@ -43,6 +43,18 @@ def test_connect_reports_rejected_paho_v2_reason_code() -> None:
     assert service.last_error == "Connection rejected: Not authorized"
 
 
+def test_subscription_rejection_is_reported() -> None:
+    service = make_service()
+    service._on_subscribe(Mock(), None, 7, [FakeReasonCode(True, "Not authorized")], None)
+    assert service.last_error == "MQTT subscription rejected: Not authorized"
+
+
+def test_subscription_confirmation_keeps_connection_clean() -> None:
+    service = make_service()
+    service._on_subscribe(Mock(), None, 7, [FakeReasonCode(False, "Granted QoS 0")], None)
+    assert service.last_error is None
+
+
 def test_publish_command_requires_connection() -> None:
     service = make_service()
     with pytest.raises(ConnectionError):

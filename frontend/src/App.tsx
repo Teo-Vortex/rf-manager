@@ -44,6 +44,12 @@ export function App() {
   }, []);
 
   useEffect(() => {
+    if (notice !== "Saved. Connecting to MQTT...") return;
+    if (status?.connected) setNotice("Saved. MQTT connected.");
+    else if (status?.last_error) setNotice(`Connection failed: ${status.last_error}`);
+  }, [status?.connected, status?.last_error, notice]);
+
+  useEffect(() => {
     if (paused) return;
     const protocol = location.protocol === "https:" ? "wss" : "ws";
     const ws = new WebSocket(`${protocol}://${location.host}/api/ws/live`);
