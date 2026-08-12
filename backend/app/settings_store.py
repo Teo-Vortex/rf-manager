@@ -13,6 +13,9 @@ MQTT_KEYS = {
     "client_id": "mqtt_client_id",
     "receive_topic": "tasmota_receive_topic",
     "command_topic": "tasmota_command_topic",
+    "ha_enabled": "ha_enabled",
+    "ha_discovery_prefix": "ha_discovery_prefix",
+    "ha_base_topic": "ha_base_topic",
 }
 
 
@@ -30,7 +33,7 @@ def effective_settings(defaults: Settings) -> Settings:
         value: object = stored[key]
         if field == "port":
             value = int(value)
-        elif field == "tls":
+        elif field in {"tls", "ha_enabled"}:
             value = value.lower() == "true"
         updates[key] = value or None if field in {"username", "password"} else value
     return defaults.model_copy(update=updates)
@@ -47,6 +50,9 @@ def config_view(defaults: Settings) -> MQTTConfigView:
         client_id=active.mqtt_client_id,
         receive_topic=active.tasmota_receive_topic,
         command_topic=active.tasmota_command_topic,
+        ha_enabled=active.ha_enabled,
+        ha_discovery_prefix=active.ha_discovery_prefix,
+        ha_base_topic=active.ha_base_topic,
     )
 
 
@@ -60,6 +66,9 @@ def save_mqtt_config(payload: MQTTConfigUpdate, defaults: Settings) -> Settings:
         "mqtt_client_id": payload.client_id.strip(),
         "tasmota_receive_topic": payload.receive_topic.strip(),
         "tasmota_command_topic": payload.command_topic.strip(),
+        "ha_enabled": str(payload.ha_enabled).lower(),
+        "ha_discovery_prefix": payload.ha_discovery_prefix.strip().strip("/"),
+        "ha_base_topic": payload.ha_base_topic.strip().strip("/"),
     }
     if payload.clear_password:
         entries["mqtt_password"] = ""

@@ -2,7 +2,7 @@
 
 RF Manager is a local web application for receiving and managing 433 MHz RF signals through a Sonoff RF Bridge running Tasmota. It uses MQTT as the only primary transport and is intended to become a Zigbee2MQTT-style manager for simple RF devices.
 
-This repository currently contains **Phase 1 (v0.1.0)**:
+The current release includes receiving, learning, fixed-code transmission and Home Assistant integration:
 
 - FastAPI backend and React/TypeScript UI
 - SQLite event storage in a persistent Docker volume
@@ -12,6 +12,7 @@ This repository currently contains **Phase 1 (v0.1.0)**:
 - configurable 300 ms duplicate suppression
 - automatic MQTT reconnect with exponential backoff
 - Docker health check and GitHub-ready CI
+- Home Assistant MQTT Discovery button entities and RF event topic
 
 ## Architecture
 
@@ -75,6 +76,12 @@ SetOption19 0
 ```
 
 After Tasmota connects to the broker, an RF reception should publish a JSON payload to `tele/rfbridge/RESULT` containing `RfReceived`. RF Manager will show it immediately in **Live RF activity**.
+
+## Home Assistant
+
+Home Assistant and RF Manager must connect to the same MQTT broker. Keep **Enable Home Assistant MQTT Discovery** selected in RF Manager. Every saved remote action is exposed as a Home Assistant button entity automatically; no YAML is required.
+
+Received RF signals are published as JSON to `rfmanager/event`. Use that topic in an MQTT automation trigger and optionally filter fields such as `device_name`, `action`, or `code`.
 
 To verify the MQTT traffic independently:
 

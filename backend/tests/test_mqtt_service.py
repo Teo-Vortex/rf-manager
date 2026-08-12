@@ -28,7 +28,8 @@ def test_connect_accepts_paho_v2_reason_code() -> None:
 
     assert service.connected is True
     assert service.last_error is None
-    client.subscribe.assert_called_once_with(service.settings.tasmota_receive_topic)
+    client.subscribe.assert_any_call(service.settings.tasmota_receive_topic)
+    client.subscribe.assert_any_call(f"{service.settings.ha_base_topic}/command/#")
 
 
 def test_connect_reports_rejected_paho_v2_reason_code() -> None:

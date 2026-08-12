@@ -93,6 +93,15 @@ def update_mqtt_config(payload: MQTTConfigUpdate) -> MQTTStatus:
     )
 
 
+@app.post("/api/home-assistant/sync")
+def sync_home_assistant() -> dict[str, object]:
+    try:
+        count = mqtt_service.sync_home_assistant()
+    except ConnectionError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return {"synchronized": True, "entities": count}
+
+
 @app.post("/api/transmit", response_model=TransmitResult)
 def transmit(payload: TransmitRequest) -> TransmitResult:
     try:
@@ -174,6 +183,8 @@ def create_device(payload: DeviceCreate, db: Session = Depends(get_db)) -> Devic
     db.commit()
     db.refresh(device)
     logger.info("Device created: id=%s name=%s type=%s codes=%s", device.id, device.name, device.device_type, len(device.codes))
+    if mqtt_service.connected:
+        mqtt_service.sync_home_assistant()
     return device_view(device)
 
 
@@ -189,6 +200,8 @@ def update_device(device_id: int, payload: DeviceCreate, db: Session = Depends(g
     db.commit()
     db.refresh(device)
     logger.info("Device updated: id=%s name=%s codes=%s", device.id, device.name, len(device.codes))
+    if mqtt_service.connected:
+        mqtt_service.sync_home_assistant()
     return device_view(device)
 
 
@@ -198,6 +211,8 @@ def delete_device(device_id: int, db: Session = Depends(get_db)) -> None:
     if device:
         db.delete(device)
         db.commit()
+        if mqtt_service.connected:
+            mqtt_service.sync_home_assistant()
 
 
 @app.websocket("/api/ws/live")

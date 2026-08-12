@@ -18,6 +18,9 @@ class Settings(BaseSettings):
     mqtt_keepalive: int = 60
     tasmota_receive_topic: str = "tele/+/RESULT"
     tasmota_command_topic: str = "cmnd/rfbridge/"
+    ha_enabled: bool = True
+    ha_discovery_prefix: str = "homeassistant"
+    ha_base_topic: str = "rfmanager"
     rf_duplicate_window_ms: int = Field(default=300, ge=0, le=60_000)
     rf_event_retention_days: int = Field(default=30, ge=1)
     log_level: str = "INFO"

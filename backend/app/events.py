@@ -1,4 +1,5 @@
 import asyncio
+from collections.abc import Callable
 from datetime import datetime, timezone
 
 from fastapi import WebSocket
@@ -15,6 +16,10 @@ class EventService:
         self._recent: dict[tuple[str, str, int | None, int | None], tuple[float, int]] = {}
         self._clients: set[WebSocket] = set()
         self._loop: asyncio.AbstractEventLoop | None = None
+        self._publisher: Callable[[RFFrame], None] | None = None
+
+    def set_publisher(self, publisher: Callable[[RFFrame], None]) -> None:
+        self._publisher = publisher
 
     def bind_loop(self, loop: asyncio.AbstractEventLoop) -> None:
         self._loop = loop
@@ -68,6 +73,8 @@ class EventService:
             self._recent[key] = (now, event_id)
 
         await self._broadcast(frame.model_dump(mode="json"))
+        if self._publisher:
+            self._publisher(frame)
         return frame
 
     async def _broadcast(self, payload: dict[str, object]) -> None:

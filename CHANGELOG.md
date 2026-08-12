@@ -2,6 +2,16 @@
 
 All notable changes use Semantic Versioning.
 
+## [0.4.0] - 2026-08-12
+
+### Added
+
+- Home Assistant MQTT Discovery for every saved RF action as a button entity.
+- MQTT command routing from Home Assistant through RF Manager to Tasmota.
+- Enriched RF event publishing on `rfmanager/event` for HA automations.
+- UI controls for discovery, discovery prefix, base topic and manual synchronization.
+- Automatic entity synchronization and removal after device changes.
+
 ## [0.3.0] - 2026-08-12
 
 ### Added

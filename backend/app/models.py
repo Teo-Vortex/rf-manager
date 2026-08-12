@@ -36,6 +36,9 @@ class MQTTConfigView(BaseModel):
     client_id: str
     receive_topic: str
     command_topic: str
+    ha_enabled: bool
+    ha_discovery_prefix: str
+    ha_base_topic: str
 
 
 class MQTTConfigUpdate(BaseModel):
@@ -48,6 +51,9 @@ class MQTTConfigUpdate(BaseModel):
     client_id: str = Field(default="rf-manager", min_length=1, max_length=255)
     receive_topic: str = Field(default="tele/+/RESULT", min_length=1, max_length=512)
     command_topic: str = Field(default="cmnd/tasmota_A3F90F/", min_length=1, max_length=512)
+    ha_enabled: bool = True
+    ha_discovery_prefix: str = Field(default="homeassistant", min_length=1, max_length=255)
+    ha_base_topic: str = Field(default="rfmanager", min_length=1, max_length=255)
 
 
 class TransmitRequest(BaseModel):

@@ -1,4 +1,5 @@
 import logging
+import json
 import random
 import socket
 import threading
@@ -8,7 +9,9 @@ import paho.mqtt.client as mqtt
 
 from .config import Settings
 from .events import EventService
+from .home_assistant import resolve_command, sync_discovery
 from .tasmota import TasmotaParseError, parse_tasmota_message
+from .tasmota_adapter import build_rfcode_command
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +26,7 @@ class MQTTService:
         self._thread: threading.Thread | None = None
         self._attempt = 0
         self._client = self._create_client(settings)
+        self.event_service.set_publisher(self.publish_ha_event)
 
     def _create_client(self, settings: Settings) -> mqtt.Client:
         client = mqtt.Client(
@@ -33,6 +37,7 @@ class MQTTService:
             client.username_pw_set(settings.mqtt_username, settings.mqtt_password)
         if settings.mqtt_tls:
             client.tls_set()
+        client.will_set(f"{settings.ha_base_topic}/status", "offline", qos=1, retain=True)
         client.on_connect = self._on_connect
         client.on_disconnect = self._on_disconnect
         client.on_message = self._on_message
@@ -65,6 +70,22 @@ class MQTTService:
             raise ConnectionError(f"MQTT publish failed with result {info.rc}")
         logger.info("MQTT command published: topic=%s payload=%s mid=%s", topic, payload, info.mid)
         return info.mid
+
+    def sync_home_assistant(self) -> int:
+        if not self.connected:
+            raise ConnectionError("MQTT is not connected")
+        return sync_discovery(self._client, self.settings)
+
+    def publish_ha_event(self, frame: object) -> None:
+        if not self.connected or not self.settings.ha_enabled:
+            return
+        payload = frame.model_dump(mode="json")
+        self._client.publish(
+            f"{self.settings.ha_base_topic}/event",
+            json.dumps(payload, separators=(",", ":")),
+            qos=0,
+            retain=False,
+        )
 
     def _run(self) -> None:
         delay = 1.0
@@ -117,7 +138,10 @@ class MQTTService:
             self.connected = True
             self.last_error = None
             result, message_id = client.subscribe(self.settings.tasmota_receive_topic)
-            client.publish("rfmanager/status", "online", qos=1, retain=True)
+            if self.settings.ha_enabled:
+                client.subscribe(f"{self.settings.ha_base_topic}/command/#")
+            client.publish(f"{self.settings.ha_base_topic}/status", "online", qos=1, retain=True)
+            sync_discovery(client, self.settings)
             logger.info(
                 "MQTT connected successfully; subscribing to %s (result=%s, mid=%s)",
                 self.settings.tasmota_receive_topic,
@@ -136,6 +160,12 @@ class MQTTService:
 
     def _on_message(self, client: mqtt.Client, userdata: object, message: mqtt.MQTTMessage) -> None:
         try:
+            command = resolve_command(message.topic, message.payload, self.settings)
+            if command:
+                topic, payload = build_rfcode_command(self.settings.tasmota_command_topic, command.code)
+                self.publish_command(topic, payload)
+                logger.info("Home Assistant command sent: device_id=%s code_id=%s", command.device_id, command.id)
+                return
             frame = parse_tasmota_message(message.topic, message.payload)
             if frame:
                 self.event_service.submit_from_mqtt_thread(frame)
