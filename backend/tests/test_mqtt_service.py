@@ -69,3 +69,7 @@ def test_known_rf_frame_publishes_home_assistant_device_trigger(monkeypatch) -> 
     service.publish_ha_event(RFFrame(code="ABC123", source_bridge="bridge", device_id=12, device_name="Remote", action="Open"))
     published = [call.args for call in service._client.publish.call_args_list]
     assert ("rfmanager/event/device/12/code/34", "PRESS") in [args[:2] for args in published]
+    event_messages = [args for args in published if args[0] == "rfmanager/event-entity/device/12/code/34"]
+    assert len(event_messages) == 1
+    assert '"event_type":"press"' in event_messages[0][1]
+    assert '"code":"ABC123"' in event_messages[0][1]

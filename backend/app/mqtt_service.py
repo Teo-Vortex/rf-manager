@@ -88,13 +88,29 @@ class MQTTService:
             retain=False,
         )
         if frame.device_id is not None:
-            from .home_assistant import trigger_topic
+            from .home_assistant import event_state_topic, trigger_topic
 
             code_id = self._find_code_id(frame.device_id, frame.code)
             if code_id is not None:
                 self._client.publish(
                     trigger_topic(self.settings, frame.device_id, code_id),
                     "PRESS",
+                    qos=0,
+                    retain=False,
+                )
+                self._client.publish(
+                    event_state_topic(self.settings, frame.device_id, code_id),
+                    json.dumps(
+                        {
+                            "event_type": "press",
+                            "code": frame.code,
+                            "action": frame.action,
+                            "device_name": frame.device_name,
+                            "source_bridge": frame.source_bridge,
+                            "timestamp": frame.timestamp.isoformat(),
+                        },
+                        separators=(",", ":"),
+                    ),
                     qos=0,
                     retain=False,
                 )

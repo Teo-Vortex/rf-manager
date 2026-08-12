@@ -24,13 +24,21 @@ def trigger_topic(settings: Settings, device_id: int, code_id: int) -> str:
     return f"{settings.ha_base_topic}/event/device/{device_id}/code/{code_id}"
 
 
+def event_discovery_topic(settings: Settings, device_id: int, code_id: int) -> str:
+    return f"{settings.ha_discovery_prefix}/event/rfmanager_{device_id}_{code_id}_received/config"
+
+
+def event_state_topic(settings: Settings, device_id: int, code_id: int) -> str:
+    return f"{settings.ha_base_topic}/event-entity/device/{device_id}/code/{code_id}"
+
+
 def command_topic(settings: Settings, device_id: int, code_id: int) -> str:
     return f"{settings.ha_base_topic}/command/device/{device_id}/code/{code_id}/set"
 
 
 def discovery_payload(settings: Settings, device: Device, code: RFCode) -> str:
     payload: dict[str, object] = {
-        "name": code.action,
+        "name": f"Send {code.action}",
         "unique_id": f"rfmanager_{device.id}_{code.id}",
         "command_topic": command_topic(settings, device.id, code.id),
         "payload_press": "PRESS",
@@ -46,6 +54,26 @@ def discovery_payload(settings: Settings, device: Device, code: RFCode) -> str:
     }
     if device.area:
         payload["suggested_area"] = device.area
+    return json.dumps(payload, separators=(",", ":"))
+
+
+def event_discovery_payload(settings: Settings, device: Device, code: RFCode) -> str:
+    payload: dict[str, object] = {
+        "name": f"Received {code.action}",
+        "unique_id": f"rfmanager_{device.id}_{code.id}_received",
+        "state_topic": event_state_topic(settings, device.id, code.id),
+        "event_types": ["press"],
+        "device_class": "button",
+        "availability_topic": f"{settings.ha_base_topic}/status",
+        "payload_available": "online",
+        "payload_not_available": "offline",
+        "device": {
+            "identifiers": [f"rfmanager_device_{device.id}"],
+            "name": device.name,
+            "manufacturer": "RF Manager",
+            "model": "Tasmota RF device",
+        },
+    }
     return json.dumps(payload, separators=(",", ":"))
 
 
@@ -82,6 +110,14 @@ def sync_discovery(client: object, settings: Settings) -> int:
                 topic = discovery_topic(settings, device.id, code.id)
                 client.publish(topic, discovery_payload(settings, device, code), qos=1, retain=True)
                 current.add(topic)
+                event_config_topic = event_discovery_topic(settings, device.id, code.id)
+                client.publish(
+                    event_config_topic,
+                    event_discovery_payload(settings, device, code),
+                    qos=1,
+                    retain=True,
+                )
+                current.add(event_config_topic)
                 trigger_config_topic = trigger_discovery_topic(settings, device.id, code.id)
                 subtype = code.action if action_counts[code.action] == 1 else f"{code.action} {code.id}"
                 client.publish(

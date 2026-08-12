@@ -2,6 +2,17 @@
 
 All notable changes use Semantic Versioning.
 
+## [0.5.0] - 2026-08-12
+
+### Added
+
+- Home Assistant MQTT event entity for every learned physical remote button.
+- Last physical press time and event attributes including RF code, action and bridge.
+
+### Changed
+
+- Home Assistant command entities are named `Send <action>` to distinguish them from received events.
+
 ## [0.4.4] - 2026-08-12
 
 ### Fixed
