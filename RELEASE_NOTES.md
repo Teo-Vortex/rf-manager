@@ -1,10 +1,9 @@
-## RF Manager 0.1.1
+## RF Manager 0.1.2
 
-This maintenance release adds in-app diagnostics for MQTT troubleshooting on ZimaOS.
+This patch fixes MQTT connection handling with paho-mqtt 2.x.
 
-- Live Diagnostics Console with pause, copy and clear-view controls.
-- DNS resolution and TCP/MQTT connection-attempt details.
-- Broker rejection reason codes and reconnect timing.
-- No credentials or passwords in diagnostic logs.
+- Correctly handles the MQTT v2 `ReasonCode` callback value.
+- Successful broker connections can now complete normally.
+- Authentication failures are shown with their real broker reason.
 
 The application does not transmit RF or publish Home Assistant Discovery yet.

@@ -2,6 +2,13 @@
 
 All notable changes use Semantic Versioning.
 
+## [0.1.2] - 2026-08-12
+
+### Fixed
+
+- Handle paho-mqtt 2.x `ReasonCode` objects without an invalid integer conversion.
+- Allow successful MQTT connections to complete and report actual broker rejection reasons.
+
 ## [0.1.1] - 2026-08-12
 
 ### Added

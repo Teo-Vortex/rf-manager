@@ -103,7 +103,8 @@ class MQTTService:
                 delay = min(delay * 2, 60)
 
     def _on_connect(self, client: mqtt.Client, userdata: object, flags: object, reason_code: object, properties: object) -> None:
-        if int(reason_code) == 0:
+        is_failure = bool(getattr(reason_code, "is_failure", reason_code != 0))
+        if not is_failure:
             self.connected = True
             self.last_error = None
             result, message_id = client.subscribe(self.settings.tasmota_receive_topic)
