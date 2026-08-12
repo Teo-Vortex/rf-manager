@@ -1,10 +1,9 @@
-## RF Manager 0.2.0
+## RF Manager 0.2.1
 
-Phase 2 introduces the first complete device-learning workflow.
+This stability release improves device maintenance and protects against accidental duplicate assignments.
 
-- Create Remote Control devices from the web UI.
-- Choose 1-16 buttons and name every action.
-- Learn the next incoming RF frame with explicit confirmation.
-- Persist device/code mappings and recognize them in Live RF.
+- Edit saved devices and use Learn again on any button.
+- See the existing device and action when an RF code conflicts.
+- Explicitly confirm before allowing the same code on multiple actions.
 
 The application does not transmit RF or publish Home Assistant Discovery yet.

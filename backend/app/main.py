@@ -1,9 +1,10 @@
 import asyncio
 import logging
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import Depends, FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import desc, select
@@ -117,6 +118,24 @@ def device_view(device: Device) -> DeviceView:
     )
 
 
+def duplicate_assignments(db: Session, payload: DeviceCreate, exclude_device_id: int | None = None) -> list[dict[str, object]]:
+    codes = {item.code.strip().upper() for item in payload.codes}
+    query = select(RFCode, Device).join(Device, RFCode.device_id == Device.id).where(RFCode.code.in_(codes))
+    if exclude_device_id is not None:
+        query = query.where(Device.id != exclude_device_id)
+    return [{"code": code.code, "device_id": device.id, "device_name": device.name, "action": code.action} for code, device in db.execute(query).all()]
+
+
+def apply_device_payload(device: Device, payload: DeviceCreate) -> None:
+    device.name = payload.name.strip()
+    device.device_type = payload.device_type
+    device.area = (payload.area or "").strip() or None
+    device.updated_at = datetime.now(timezone.utc)
+    device.codes.clear()
+    for item in payload.codes:
+        device.codes.append(RFCode(code=item.code.strip().upper(), action=item.action.strip(), protocol=item.protocol, bits=item.bits, pulse=item.pulse))
+
+
 @app.get("/api/devices", response_model=list[DeviceView])
 def list_devices(db: Session = Depends(get_db)) -> list[DeviceView]:
     return [device_view(device) for device in db.scalars(select(Device).order_by(Device.name)).unique().all()]
@@ -124,13 +143,30 @@ def list_devices(db: Session = Depends(get_db)) -> list[DeviceView]:
 
 @app.post("/api/devices", response_model=DeviceView, status_code=201)
 def create_device(payload: DeviceCreate, db: Session = Depends(get_db)) -> DeviceView:
-    device = Device(name=payload.name.strip(), device_type=payload.device_type, area=(payload.area or "").strip() or None)
-    for item in payload.codes:
-        device.codes.append(RFCode(code=item.code.strip().upper(), action=item.action.strip(), protocol=item.protocol, bits=item.bits, pulse=item.pulse))
+    conflicts = duplicate_assignments(db, payload)
+    if conflicts and not payload.allow_duplicates:
+        raise HTTPException(status_code=409, detail={"message": "One or more RF codes are already assigned", "conflicts": conflicts})
+    device = Device()
+    apply_device_payload(device, payload)
     db.add(device)
     db.commit()
     db.refresh(device)
     logger.info("Device created: id=%s name=%s type=%s codes=%s", device.id, device.name, device.device_type, len(device.codes))
+    return device_view(device)
+
+
+@app.put("/api/devices/{device_id}", response_model=DeviceView)
+def update_device(device_id: int, payload: DeviceCreate, db: Session = Depends(get_db)) -> DeviceView:
+    device = db.get(Device, device_id)
+    if not device:
+        raise HTTPException(status_code=404, detail="Device not found")
+    conflicts = duplicate_assignments(db, payload, exclude_device_id=device_id)
+    if conflicts and not payload.allow_duplicates:
+        raise HTTPException(status_code=409, detail={"message": "One or more RF codes are already assigned", "conflicts": conflicts})
+    apply_device_payload(device, payload)
+    db.commit()
+    db.refresh(device)
+    logger.info("Device updated: id=%s name=%s codes=%s", device.id, device.name, len(device.codes))
     return device_view(device)
 
 

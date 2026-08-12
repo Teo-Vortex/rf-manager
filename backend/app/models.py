@@ -61,6 +61,7 @@ class DeviceCreate(BaseModel):
     device_type: str = "remote_control"
     area: str | None = Field(default=None, max_length=255)
     codes: list[RFCodeCreate] = Field(min_length=1)
+    allow_duplicates: bool = False
 
 
 class RFCodeView(RFCodeCreate):

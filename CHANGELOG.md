@@ -2,6 +2,14 @@
 
 All notable changes use Semantic Versioning.
 
+## [0.2.1] - 2026-08-12
+
+### Added
+
+- Edit device and relearn individual remote buttons.
+- Duplicate RF code conflict details with explicit allow-duplicate confirmation.
+- Device update API with full code replacement and validation.
+
 ## [0.2.0] - 2026-08-12
 
 ### Added
