@@ -81,6 +81,8 @@ After Tasmota connects to the broker, an RF reception should publish a JSON payl
 
 Home Assistant and RF Manager must connect to the same MQTT broker. Keep **Enable Home Assistant MQTT Discovery** selected in RF Manager. Every saved remote action is exposed as a Home Assistant button entity automatically; no YAML is required.
 
+Each learned action is also exposed as an MQTT device trigger. In Home Assistant's automation editor, select the saved remote as the device and its named button press as the trigger.
+
 Received RF signals are published as JSON to `rfmanager/event`. Use that topic in an MQTT automation trigger and optionally filter fields such as `device_name`, `action`, or `code`.
 
 To verify the MQTT traffic independently:

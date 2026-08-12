@@ -86,6 +86,32 @@ class MQTTService:
             qos=0,
             retain=False,
         )
+        if frame.device_id is not None:
+            from .home_assistant import trigger_topic
+
+            code_id = self._find_code_id(frame.device_id, frame.code)
+            if code_id is not None:
+                self._client.publish(
+                    trigger_topic(self.settings, frame.device_id, code_id),
+                    "PRESS",
+                    qos=0,
+                    retain=False,
+                )
+
+    @staticmethod
+    def _find_code_id(device_id: int, code: str) -> int | None:
+        from sqlalchemy import select
+
+        from .db import RFCode, SessionLocal
+
+        with SessionLocal() as db:
+            return db.scalar(
+                select(RFCode.id).where(
+                    RFCode.device_id == device_id,
+                    RFCode.code == code,
+                    RFCode.enabled.is_(True),
+                ).limit(1)
+            )
 
     def _run(self) -> None:
         delay = 1.0

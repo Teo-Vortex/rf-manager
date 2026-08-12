@@ -2,7 +2,14 @@ import json
 
 from backend.app.config import Settings
 from backend.app.db import Device, RFCode, SessionLocal
-from backend.app.home_assistant import command_topic, discovery_payload, resolve_command
+from backend.app.home_assistant import (
+    command_topic,
+    discovery_payload,
+    resolve_command,
+    trigger_discovery_payload,
+    trigger_discovery_topic,
+    trigger_topic,
+)
 
 
 def test_discovery_creates_home_assistant_button() -> None:
@@ -38,3 +45,16 @@ def test_home_assistant_press_resolves_saved_code() -> None:
 
 def test_home_assistant_ignores_unknown_payload() -> None:
     assert resolve_command("rfmanager/command/device/1/code/2/set", b"NO", Settings()) is None
+
+
+def test_device_trigger_discovery_uses_dedicated_press_topic() -> None:
+    settings = Settings()
+    device = Device(id=12, name="Garage Remote", area="Garage")
+    code = RFCode(id=34, device_id=12, code="ABC123", action="Open")
+    payload = json.loads(trigger_discovery_payload(settings, device, code))
+    assert trigger_discovery_topic(settings, 12, 34) == "homeassistant/device_automation/rfmanager_12/button_34/config"
+    assert payload["automation_type"] == "trigger"
+    assert payload["type"] == "button_short_press"
+    assert payload["subtype"] == "Open"
+    assert payload["payload"] == "PRESS"
+    assert payload["topic"] == trigger_topic(settings, 12, 34)

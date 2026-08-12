@@ -4,6 +4,7 @@ import pytest
 
 from backend.app.config import Settings
 from backend.app.mqtt_service import MQTTService
+from backend.app.models import RFFrame
 
 
 class FakeReasonCode:
@@ -46,3 +47,13 @@ def test_publish_command_requires_connection() -> None:
     service = make_service()
     with pytest.raises(ConnectionError):
         service.publish_command("cmnd/bridge/RfCode", "#ABC123")
+
+
+def test_known_rf_frame_publishes_home_assistant_device_trigger(monkeypatch) -> None:
+    service = make_service()
+    service.connected = True
+    service._client = Mock()
+    monkeypatch.setattr(service, "_find_code_id", lambda device_id, code: 34)
+    service.publish_ha_event(RFFrame(code="ABC123", source_bridge="bridge", device_id=12, device_name="Remote", action="Open"))
+    published = [call.args for call in service._client.publish.call_args_list]
+    assert ("rfmanager/event/device/12/code/34", "PRESS") in [args[:2] for args in published]

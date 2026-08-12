@@ -2,6 +2,13 @@
 
 All notable changes use Semantic Versioning.
 
+## [0.4.1] - 2026-08-12
+
+### Added
+
+- Home Assistant MQTT Device Trigger Discovery for physical remote button presses.
+- Dedicated non-retained MQTT press topics for every learned RF action.
+
 ## [0.4.0] - 2026-08-12
 
 ### Added
