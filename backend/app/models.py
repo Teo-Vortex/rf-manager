@@ -35,6 +35,7 @@ class MQTTConfigView(BaseModel):
     tls: bool = False
     client_id: str
     receive_topic: str
+    command_topic: str
 
 
 class MQTTConfigUpdate(BaseModel):
@@ -46,6 +47,21 @@ class MQTTConfigUpdate(BaseModel):
     tls: bool = False
     client_id: str = Field(default="rf-manager", min_length=1, max_length=255)
     receive_topic: str = Field(default="tele/+/RESULT", min_length=1, max_length=512)
+    command_topic: str = Field(default="cmnd/tasmota_A3F90F/", min_length=1, max_length=512)
+
+
+class TransmitRequest(BaseModel):
+    code: str = Field(min_length=1, max_length=128)
+    protocol: int | None = None
+    bits: int | None = None
+    pulse: int | None = None
+
+
+class TransmitResult(BaseModel):
+    accepted: bool
+    topic: str
+    payload: str
+    message_id: int | None = None
 
 
 class RFCodeCreate(BaseModel):

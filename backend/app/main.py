@@ -14,9 +14,10 @@ from .config import get_settings
 from .db import Device, RFCode, RFEvent, get_db, init_db
 from .events import EventService
 from .log_buffer import LogEntry, memory_log_handler
-from .models import DeviceCreate, DeviceView, MQTTConfigUpdate, MQTTConfigView, MQTTStatus, RFCodeView, RFFrame
+from .models import DeviceCreate, DeviceView, MQTTConfigUpdate, MQTTConfigView, MQTTStatus, RFCodeView, RFFrame, TransmitRequest, TransmitResult
 from .mqtt_service import MQTTService
 from .settings_store import config_view, effective_settings, save_mqtt_config
+from .tasmota_adapter import UnsupportedRFCode, build_rfcode_command
 
 settings = get_settings()
 logging.basicConfig(level=settings.log_level, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -90,6 +91,27 @@ def update_mqtt_config(payload: MQTTConfigUpdate) -> MQTTStatus:
         topic=active.tasmota_receive_topic,
         last_error=None,
     )
+
+
+@app.post("/api/transmit", response_model=TransmitResult)
+def transmit(payload: TransmitRequest) -> TransmitResult:
+    try:
+        topic, command = build_rfcode_command(mqtt_service.settings.tasmota_command_topic, payload.code)
+    except UnsupportedRFCode as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    try:
+        message_id = mqtt_service.publish_command(topic, command)
+    except ConnectionError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return TransmitResult(accepted=True, topic=topic, payload=command, message_id=message_id)
+
+
+@app.post("/api/devices/{device_id}/codes/{code_id}/transmit", response_model=TransmitResult)
+def transmit_saved_code(device_id: int, code_id: int, db: Session = Depends(get_db)) -> TransmitResult:
+    code = db.scalar(select(RFCode).where(RFCode.id == code_id, RFCode.device_id == device_id, RFCode.enabled.is_(True)))
+    if not code:
+        raise HTTPException(status_code=404, detail="RF code not found")
+    return transmit(TransmitRequest(code=code.code, protocol=code.protocol, bits=code.bits, pulse=code.pulse))
 
 
 @app.get("/api/diagnostics/logs", response_model=list[LogEntry])

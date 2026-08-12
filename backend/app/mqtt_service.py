@@ -57,6 +57,15 @@ class MQTTService:
         self._client = self._create_client(settings)
         self.start()
 
+    def publish_command(self, topic: str, payload: str) -> int:
+        if not self.connected:
+            raise ConnectionError("MQTT is not connected")
+        info = self._client.publish(topic, payload, qos=0, retain=False)
+        if info.rc != mqtt.MQTT_ERR_SUCCESS:
+            raise ConnectionError(f"MQTT publish failed with result {info.rc}")
+        logger.info("MQTT command published: topic=%s payload=%s mid=%s", topic, payload, info.mid)
+        return info.mid
+
     def _run(self) -> None:
         delay = 1.0
         while not self._stop.is_set():

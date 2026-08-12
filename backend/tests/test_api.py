@@ -1,6 +1,6 @@
 from fastapi.testclient import TestClient
 
-from backend.app.main import app
+from backend.app.main import app, mqtt_service
 
 
 def test_health() -> None:
@@ -59,3 +59,19 @@ def test_update_device_and_replace_learned_code() -> None:
         assert updated.json()["name"] == "New"
         assert updated.json()["codes"][0]["code"] == "NEW001"
         client.delete(f"/api/devices/{device['id']}")
+
+
+def test_transmit_publishes_tasmota_rfcode(monkeypatch) -> None:
+    published: list[tuple[str, str]] = []
+    monkeypatch.setattr(mqtt_service, "publish_command", lambda topic, payload: published.append((topic, payload)) or 42)
+    with TestClient(app) as client:
+        response = client.post("/api/transmit", json={"code": "abc123"})
+        assert response.status_code == 200
+        assert response.json()["message_id"] == 42
+        assert published == [(f"{mqtt_service.settings.tasmota_command_topic.rstrip('/')}/RfCode", "#ABC123")]
+
+
+def test_transmit_rejects_unsupported_code() -> None:
+    with TestClient(app) as client:
+        response = client.post("/api/transmit", json={"code": "NOT-HEX"})
+        assert response.status_code == 422

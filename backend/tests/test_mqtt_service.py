@@ -1,5 +1,7 @@
 from unittest.mock import Mock
 
+import pytest
+
 from backend.app.config import Settings
 from backend.app.mqtt_service import MQTTService
 
@@ -37,3 +39,9 @@ def test_connect_reports_rejected_paho_v2_reason_code() -> None:
 
     assert service.connected is False
     assert service.last_error == "Connection rejected: Not authorized"
+
+
+def test_publish_command_requires_connection() -> None:
+    service = make_service()
+    with pytest.raises(ConnectionError):
+        service.publish_command("cmnd/bridge/RfCode", "#ABC123")

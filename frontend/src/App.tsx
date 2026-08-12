@@ -2,13 +2,13 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 
 type Status = { connected: boolean; host: string; port: number; topic: string; last_error: string | null };
 type Frame = { code: string; bits: number | null; protocol: number | null; pulse: number | null; source_bridge: string; timestamp: string; count: number; device_id: number | null; device_name: string | null; action: string | null };
-type Config = { host: string; port: number; username: string | null; password_configured: boolean; tls: boolean; client_id: string; receive_topic: string };
+type Config = { host: string; port: number; username: string | null; password_configured: boolean; tls: boolean; client_id: string; receive_topic: string; command_topic: string };
 type LogEntry = { timestamp: string; level: string; logger: string; message: string };
 type DeviceCode = { id: number; code: string; action: string; protocol: number | null; bits: number | null; pulse: number | null };
 type Device = { id: number; name: string; device_type: string; area: string | null; enabled: boolean; codes: DeviceCode[] };
 type DraftButton = { action: string; frame: Frame | null };
 
-const blankConfig: Config = { host: "host.docker.internal", port: 1883, username: "", password_configured: false, tls: false, client_id: "rf-manager", receive_topic: "tele/+/RESULT" };
+const blankConfig: Config = { host: "host.docker.internal", port: 1883, username: "", password_configured: false, tls: false, client_id: "rf-manager", receive_topic: "tele/+/RESULT", command_topic: "cmnd/tasmota_A3F90F/" };
 
 export function App() {
   const [status, setStatus] = useState<Status | null>(null);
@@ -20,7 +20,7 @@ export function App() {
   const [notice, setNotice] = useState("");
   const [paused, setPaused] = useState(false);
   const [search, setSearch] = useState("");
-  const [page, setPage] = useState<"live" | "devices" | "diagnostics">("live");
+  const [page, setPage] = useState<"live" | "devices" | "transmit" | "diagnostics">("live");
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [logsPaused, setLogsPaused] = useState(false);
   const [hiddenBefore, setHiddenBefore] = useState(0);
@@ -33,6 +33,9 @@ export function App() {
   const [candidate, setCandidate] = useState<Frame | null>(null);
   const [wizardNotice, setWizardNotice] = useState("");
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [txCode, setTxCode] = useState("");
+  const [txNotice, setTxNotice] = useState("");
+  const [sendingId, setSendingId] = useState<number | null>(null);
 
   useEffect(() => {
     Promise.all([fetch("/api/status").then(r => r.json()), fetch("/api/events").then(r => r.json()), fetch("/api/settings/mqtt").then(r => r.json())]).then(([s, e, c]) => { setStatus(s); setEvents(e); setConfig(c); if (!s.connected) setSettingsOpen(true); });
@@ -53,7 +56,7 @@ export function App() {
   }, [paused, learningIndex]);
 
   useEffect(() => {
-    if (page === "devices") fetch("/api/devices").then(r => r.json()).then(setDevices);
+    if (page === "devices" || page === "transmit") fetch("/api/devices").then(r => r.json()).then(setDevices);
     if (page !== "diagnostics" || logsPaused) return;
     const load = () => fetch("/api/diagnostics/logs?limit=500").then(r => r.json()).then(setLogs);
     load(); const timer = window.setInterval(load, 2000); return () => window.clearInterval(timer);
@@ -64,7 +67,7 @@ export function App() {
 
   async function saveSettings(event: FormEvent) {
     event.preventDefault(); setSaving(true); setNotice("");
-    const response = await fetch("/api/settings/mqtt", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ host: config.host, port: Number(config.port), username: config.username || null, password: password || null, tls: config.tls, client_id: config.client_id, receive_topic: config.receive_topic }) });
+    const response = await fetch("/api/settings/mqtt", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ host: config.host, port: Number(config.port), username: config.username || null, password: password || null, tls: config.tls, client_id: config.client_id, receive_topic: config.receive_topic, command_topic: config.command_topic }) });
     setSaving(false); if (!response.ok) { setNotice("Could not save MQTT settings."); return; }
     setPassword(""); setNotice("Saved. Connecting to MQTT...");
   }
@@ -109,15 +112,23 @@ export function App() {
     const saved = await response.json(); setDevices(current => editingId ? current.map(item => item.id === editingId ? saved : item) : [...current, saved]); setWizardOpen(false); setEditingId(null); setDeviceName(""); setDeviceArea(""); setDraftButtons([{ action: "Button 1", frame: null }]);
   }
 
+  async function sendCode(code: string, deviceId?: number, codeId?: number) {
+    setTxNotice(""); if (codeId) setSendingId(codeId);
+    const response = await fetch(deviceId && codeId ? `/api/devices/${deviceId}/codes/${codeId}/transmit` : "/api/transmit", { method: "POST", headers: { "Content-Type": "application/json" }, body: deviceId ? undefined : JSON.stringify({ code }) });
+    setSendingId(null);
+    if (!response.ok) { const body = await response.json(); setTxNotice(body.detail || "Transmit failed."); return; }
+    const result = await response.json(); setTxNotice(`Sent ${result.payload} to ${result.topic}`);
+  }
+
   return <div className="shell"><aside>
     <div className="brand"><span className="signal">⌁</span><div><strong>RF Manager</strong><small>433 MHz control</small></div></div>
-    <nav><button className={page === "live" ? "active" : ""} onClick={() => setPage("live")}>Live RF</button><button className={page === "devices" ? "active" : ""} onClick={() => setPage("devices")}>Devices</button><button className={page === "diagnostics" ? "active" : ""} onClick={() => setPage("diagnostics")}>Diagnostics</button></nav>
+    <nav><button className={page === "live" ? "active" : ""} onClick={() => setPage("live")}>Live RF</button><button className={page === "devices" ? "active" : ""} onClick={() => setPage("devices")}>Devices</button><button className={page === "transmit" ? "active" : ""} onClick={() => setPage("transmit")}>Transmit</button><button className={page === "diagnostics" ? "active" : ""} onClick={() => setPage("diagnostics")}>Diagnostics</button></nav>
     <button className="settings-link" onClick={() => { setPage("live"); setSettingsOpen(true); }}>⚙ MQTT settings</button>
     <div className={`broker ${status?.connected ? "online" : "offline"}`}><i /><div><strong>{status?.connected ? "MQTT connected" : "MQTT disconnected"}</strong><small>{status ? `${status.host}:${status.port}` : "Loading..."}</small></div></div>
   </aside><main>
     {page === "live" && <><header><div><p className="eyebrow">REAL-TIME MONITOR</p><h1>Live RF activity</h1><p>Signals received from your Tasmota RF Bridge.</p></div><button className="secondary" onClick={() => setSettingsOpen(!settingsOpen)}>Configure MQTT</button></header>
       {settingsOpen && <section className="settings-card"><div><p className="eyebrow">CONNECTION</p><h2>MQTT broker</h2><p>On ZimaOS use <code>host.docker.internal</code>.</p></div><form onSubmit={saveSettings}>
-        <label className="wide">Broker host<input value={config.host} onChange={e => setConfig({...config, host:e.target.value})} required /></label><label>Port<input type="number" value={config.port} onChange={e => setConfig({...config, port:Number(e.target.value)})} required /></label><label>Username<input value={config.username || ""} onChange={e => setConfig({...config, username:e.target.value})} /></label><label>Password<input type="password" value={password} placeholder={config.password_configured ? "Saved - leave blank to keep" : "Optional"} onChange={e => setPassword(e.target.value)} /></label><label>Client ID<input value={config.client_id} onChange={e => setConfig({...config, client_id:e.target.value})} /></label><label className="wide">Tasmota receive topic<input value={config.receive_topic} onChange={e => setConfig({...config, receive_topic:e.target.value})} /></label><label className="check"><input type="checkbox" checked={config.tls} onChange={e => setConfig({...config, tls:e.target.checked})} /> Use TLS</label><div className="form-actions"><span>{notice}</span><button disabled={saving}>{saving ? "Saving..." : "Save & connect"}</button></div>
+        <label className="wide">Broker host<input value={config.host} onChange={e => setConfig({...config, host:e.target.value})} required /></label><label>Port<input type="number" value={config.port} onChange={e => setConfig({...config, port:Number(e.target.value)})} required /></label><label>Username<input value={config.username || ""} onChange={e => setConfig({...config, username:e.target.value})} /></label><label>Password<input type="password" value={password} placeholder={config.password_configured ? "Saved - leave blank to keep" : "Optional"} onChange={e => setPassword(e.target.value)} /></label><label>Client ID<input value={config.client_id} onChange={e => setConfig({...config, client_id:e.target.value})} /></label><label className="wide">Tasmota receive topic<input value={config.receive_topic} onChange={e => setConfig({...config, receive_topic:e.target.value})} /></label><label className="wide">Tasmota command topic<input value={config.command_topic} onChange={e => setConfig({...config, command_topic:e.target.value})} placeholder="cmnd/tasmota_A3F90F/" /></label><label className="check"><input type="checkbox" checked={config.tls} onChange={e => setConfig({...config, tls:e.target.checked})} /> Use TLS</label><div className="form-actions"><span>{notice}</span><button disabled={saving}>{saving ? "Saving..." : "Save & connect"}</button></div>
       </form></section>}
       <section className="toolbar"><input placeholder="Search code, device or bridge..." value={search} onChange={e => setSearch(e.target.value)} /><div><button className="ghost" onClick={() => setPaused(!paused)}>{paused ? "Resume" : "Pause"}</button><button className="ghost" onClick={() => setEvents([])}>Clear view</button></div></section>
       <section className="table-card"><table><thead><tr><th>Time</th><th>RF code</th><th>Status</th><th>Protocol</th><th>Bits</th><th>Pulse</th><th>Count</th><th>Bridge</th></tr></thead><tbody>{visible.map((frame,index) => <tr key={`${frame.timestamp}-${index}`}><td>{new Date(frame.timestamp).toLocaleTimeString()}</td><td><code className="rf-code">{frame.code}</code></td><td>{frame.device_name ? <span className="known">{frame.device_name} → {frame.action}</span> : <span className="unknown">Unknown</span>}</td><td>{frame.protocol ?? "—"}</td><td>{frame.bits ?? "—"}</td><td>{frame.pulse ?? "—"}</td><td>{frame.count}</td><td>{frame.source_bridge}</td></tr>)}</tbody></table>{!visible.length && <div className="empty"><span>⌁</span><h3>Waiting for RF signals</h3><p>Press a button on a 433 MHz remote.</p></div>}</section>
@@ -129,9 +140,10 @@ export function App() {
         {learningIndex !== null && <div className="learning-panel"><i /><div><strong>Waiting for {draftButtons[learningIndex].action}</strong>{candidate ? <p>Received <code>{candidate.code}</code> · {candidate.bits ?? "?"} bits · protocol {candidate.protocol ?? "?"}</p> : <p>Press the physical button now...</p>}</div>{candidate && <><button type="button" className="primary" onClick={useCandidate}>Use this code</button><button type="button" className="ghost" onClick={() => setCandidate(null)}>Wait for another</button></>}</div>}
         <div className="wizard-actions"><span>{wizardNotice}</span><button className="primary" disabled={!deviceName || draftButtons.some(button => !button.frame)}>{editingId ? "Save changes" : "Save remote"}</button></div>
       </form></section>}
-      <section className="device-grid">{devices.map(device => <article className="device-card" key={device.id}><div><span className="device-icon">⌁</span><small>Remote control</small><h3>{device.name}</h3><p>{device.area || "No area"} · {device.codes.length} button{device.codes.length === 1 ? "" : "s"}</p></div><ul>{device.codes.map(code => <li key={code.id}><span>{code.action}</span><code>{code.code}</code></li>)}</ul><div className="device-actions"><button className="ghost" onClick={() => openEditDevice(device)}>Edit / Learn again</button><button className="danger-link" onClick={async () => { if (confirm(`Delete ${device.name}?`)) { await fetch(`/api/devices/${device.id}`, {method:"DELETE"}); setDevices(current => current.filter(item => item.id !== device.id)); } }}>Delete</button></div></article>)}</section>
+      <section className="device-grid">{devices.map(device => <article className="device-card" key={device.id}><div><span className="device-icon">⌁</span><small>Remote control</small><h3>{device.name}</h3><p>{device.area || "No area"} · {device.codes.length} button{device.codes.length === 1 ? "" : "s"}</p></div><ul>{device.codes.map(code => <li key={code.id}><span>{code.action}</span><div><code>{code.code}</code><button className="send-mini" disabled={sendingId === code.id} onClick={() => sendCode(code.code, device.id, code.id)}>{sendingId === code.id ? "..." : "Test"}</button></div></li>)}</ul><div className="device-actions"><button className="ghost" onClick={() => openEditDevice(device)}>Edit / Learn again</button><button className="danger-link" onClick={async () => { if (confirm(`Delete ${device.name}?`)) { await fetch(`/api/devices/${device.id}`, {method:"DELETE"}); setDevices(current => current.filter(item => item.id !== device.id)); } }}>Delete</button></div></article>)}</section>
       {!devices.length && !wizardOpen && <section className="table-card empty"><span>⌁</span><h3>No RF devices yet</h3><p>Add a remote and learn its physical buttons.</p></section>}
     </>}
+    {page === "transmit" && <><header><div><p className="eyebrow">RF TRANSMISSION</p><h1>Transmit</h1><p>Send fixed 24-bit hexadecimal codes through the configured Tasmota bridge.</p></div></header><section className="transmit-card"><div><h2>Send RF code</h2><p>Standard Tasmota <code>RfCode</code> mode. Rolling codes and raw Portisch frames are intentionally blocked.</p></div><form onSubmit={e => { e.preventDefault(); sendCode(txCode); }}><label>Code<input value={txCode} onChange={e => setTxCode(e.target.value.toUpperCase())} placeholder="ABC123" maxLength={8} required /></label><button className="primary" disabled={!status?.connected}>Send</button></form>{txNotice && <div className="tx-notice">{txNotice}</div>}</section><section className="device-grid">{devices.flatMap(device => device.codes.map(code => <article className="saved-command" key={code.id}><div><small>{device.name}</small><strong>{code.action}</strong><code>{code.code}</code></div><button className="primary" onClick={() => sendCode(code.code,device.id,code.id)}>Send</button></article>))}</section></>}
     {page === "diagnostics" && <><header><div><p className="eyebrow">SYSTEM DIAGNOSTICS</p><h1>Console & logs</h1><p>Connection details. Passwords are never logged.</p></div></header><section className="diagnostic-summary"><div><small>MQTT STATUS</small><strong className={status?.connected ? "good" : "bad"}>{status?.connected ? "Connected" : "Disconnected"}</strong></div><div><small>BROKER</small><strong>{status ? `${status.host}:${status.port}` : "—"}</strong></div><div><small>TOPIC</small><strong>{status?.topic || "—"}</strong></div><div><small>LAST ERROR</small><strong className="bad">{status?.last_error || "None"}</strong></div></section><section className="console-card"><div className="console-toolbar"><span>{visibleLogs.length} log entries</span><div><button className="ghost" onClick={() => setLogsPaused(!logsPaused)}>{logsPaused ? "Resume" : "Pause"}</button><button className="ghost" onClick={() => navigator.clipboard.writeText(visibleLogs.map(e => `${e.timestamp} ${e.level} ${e.logger}: ${e.message}`).join("\n"))}>Copy logs</button><button className="ghost" onClick={() => setHiddenBefore(Date.now())}>Clear view</button></div></div><div className="console">{visibleLogs.map((entry,index) => <div className={`log-line ${entry.level.toLowerCase()}`} key={`${entry.timestamp}-${index}`}><time>{new Date(entry.timestamp).toLocaleTimeString()}</time><b>{entry.level}</b><span>{entry.logger}</span><code>{entry.message}</code></div>)}</div></section></>}
   </main></div>;
 }

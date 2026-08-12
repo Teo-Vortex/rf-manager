@@ -1,9 +1,10 @@
-## RF Manager 0.2.1
+## RF Manager 0.3.0
 
-This stability release improves device maintenance and protects against accidental duplicate assignments.
+Phase 3 adds fixed-code RF transmission through the configured Tasmota bridge.
 
-- Edit saved devices and use Learn again on any button.
-- See the existing device and action when an RF code conflicts.
-- Explicitly confirm before allowing the same code on multiple actions.
+- Configure a Tasmota command topic from the MQTT settings.
+- Test learned buttons directly from device cards.
+- Send saved or manually entered six-digit RF codes.
+- Block raw, malformed and rolling-code transmission modes.
 
 The application does not transmit RF or publish Home Assistant Discovery yet.

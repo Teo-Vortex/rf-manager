@@ -2,6 +2,15 @@
 
 All notable changes use Semantic Versioning.
 
+## [0.3.0] - 2026-08-12
+
+### Added
+
+- Configurable Tasmota command topic.
+- Standard fixed-code transmission through Tasmota `RfCode` over MQTT.
+- Transmit page, saved commands and Test buttons on device cards.
+- Validation that blocks unsupported, raw and non-six-digit codes.
+
 ## [0.2.1] - 2026-08-12
 
 ### Added

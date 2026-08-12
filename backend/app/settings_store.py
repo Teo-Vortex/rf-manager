@@ -12,6 +12,7 @@ MQTT_KEYS = {
     "tls": "mqtt_tls",
     "client_id": "mqtt_client_id",
     "receive_topic": "tasmota_receive_topic",
+    "command_topic": "tasmota_command_topic",
 }
 
 
@@ -45,6 +46,7 @@ def config_view(defaults: Settings) -> MQTTConfigView:
         tls=active.mqtt_tls,
         client_id=active.mqtt_client_id,
         receive_topic=active.tasmota_receive_topic,
+        command_topic=active.tasmota_command_topic,
     )
 
 
@@ -57,6 +59,7 @@ def save_mqtt_config(payload: MQTTConfigUpdate, defaults: Settings) -> Settings:
         "mqtt_tls": str(payload.tls).lower(),
         "mqtt_client_id": payload.client_id.strip(),
         "tasmota_receive_topic": payload.receive_topic.strip(),
+        "tasmota_command_topic": payload.command_topic.strip(),
     }
     if payload.clear_password:
         entries["mqtt_password"] = ""
