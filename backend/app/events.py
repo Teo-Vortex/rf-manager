@@ -31,6 +31,9 @@ class EventService:
     def disconnect(self, websocket: WebSocket) -> None:
         self._clients.discard(websocket)
 
+    def clear_recent(self) -> None:
+        self._recent.clear()
+
     def submit_from_mqtt_thread(self, frame: RFFrame) -> None:
         if self._loop is not None:
             asyncio.run_coroutine_threadsafe(self.process(frame), self._loop)

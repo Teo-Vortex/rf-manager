@@ -2,6 +2,12 @@
 
 All notable changes use Semantic Versioning.
 
+## [0.4.2] - 2026-08-12
+
+### Fixed
+
+- Delete RF activity from persistent SQLite history instead of only hiding rows until refresh.
+
 ## [0.4.1] - 2026-08-12
 
 ### Added

@@ -75,3 +75,9 @@ def test_transmit_rejects_unsupported_code() -> None:
     with TestClient(app) as client:
         response = client.post("/api/transmit", json={"code": "NOT-HEX"})
         assert response.status_code == 422
+
+
+def test_delete_event_history() -> None:
+    with TestClient(app) as client:
+        assert client.delete("/api/events").status_code == 204
+        assert client.get("/api/events").json() == []

@@ -1,6 +1,8 @@
-## RF Manager 0.4.1
+## RF Manager 0.4.2
 
 Home Assistant integration now supports both transmitting and physical remote press triggers through MQTT Discovery with no YAML required.
+
+RF activity history can now be permanently deleted from the Live RF page.
 
 - Every saved RF action appears as a Home Assistant button entity.
 - Button presses are routed through RF Manager and transmitted by Tasmota.

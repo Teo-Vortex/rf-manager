@@ -7,7 +7,7 @@ from pathlib import Path
 from fastapi import Depends, FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
-from sqlalchemy import desc, select
+from sqlalchemy import delete, desc, select
 from sqlalchemy.orm import Session
 
 from .config import get_settings
@@ -139,6 +139,14 @@ def events(limit: int = 100, db: Session = Depends(get_db)) -> list[RFFrame]:
         )
         for row in rows
     ]
+
+
+@app.delete("/api/events", status_code=204)
+def delete_events(db: Session = Depends(get_db)) -> None:
+    db.execute(delete(RFEvent))
+    db.commit()
+    event_service.clear_recent()
+    logger.info("RF event history deleted from UI")
 
 
 def device_view(device: Device) -> DeviceView:
